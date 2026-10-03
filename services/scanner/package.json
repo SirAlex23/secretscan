@@ -1,0 +1,12 @@
+{
+    "name": "scanner",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch src/index.ts"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.112.3"
+    }
+}
