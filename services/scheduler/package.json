@@ -1,9 +1,20 @@
 {
-    "name": "scheduler",
-    "version": "1.0.0",
-    "private": true,
-    "type": "module",
-    "scripts": {
-      "start": "tsx src/index.ts"
-    }
+  "name": "scheduler",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.4",
+    "dotenv": "^16.4.5",
+    "octokit": "^4.0.2",
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.7.0"
   }
+}
