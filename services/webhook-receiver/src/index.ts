@@ -2,12 +2,15 @@ import "./env.js";
 import express from "express";
 import { verifyGithubSignature } from "./verifySignature.js";
 import { publishScanRequested } from "./publisher.js";
-import { findRepoAndCreateScan } from "./repoLookup.js";
+import {
+  findRepoCandidates,
+  createScan,
+  findRepoAndCreateScan,
+} from "./repoLookup.js";
 
 const app = express();
 const PORT = process.env.PORT || 4001;
 
-// ... resto del archivo exactamente igual, sin el dotenv.config() ni el import de dotenv
 app.use(
   express.json({
     verify: (req, _res, buf) => {
@@ -29,24 +32,40 @@ app.post("/webhooks/github", async (req, res) => {
     return res.status(401).json({ error: "Falta la firma del webhook" });
   }
 
-  const isValid = verifyGithubSignature(rawBody, signature);
-  if (!isValid) {
-    return res.status(401).json({ error: "Firma inválida" });
-  }
-
+  // GitHub envía un "ping" al crear el webhook; solo actuamos con push
   if (event !== "push") {
     return res.status(200).json({ message: `Evento ${event} ignorado` });
   }
 
   const payload = req.body;
-  const repoFullName = payload.repository.full_name;
+  const repoFullName = payload?.repository?.full_name;
 
-  const repoAndScan = await findRepoAndCreateScan("github", repoFullName);
+  if (!repoFullName) {
+    return res.status(400).json({ error: "Payload sin repositorio" });
+  }
+
+  // El secreto es distinto por repo: buscamos el que valide la firma
+  const candidates = await findRepoCandidates("github", repoFullName);
+  const matched = candidates.find((c) =>
+    verifyGithubSignature(rawBody, signature, c.webhook_secret)
+  );
+
+  if (!matched) {
+    console.log(
+      `Firma no válida o repo no conectado: ${repoFullName} (${candidates.length} candidatos)`
+    );
+    return res.status(401).json({ error: "Firma inválida" });
+  }
+
+  // Un push que borra una rama no tiene nada que escanear
+  if (payload.deleted) {
+    return res.status(200).json({ message: "Push de borrado ignorado" });
+  }
+
+  const repoAndScan = await createScan(matched);
 
   if (!repoAndScan) {
-    return res.status(200).json({
-      message: `Repo ${repoFullName} no está conectado en SecretScan, evento ignorado`,
-    });
+    return res.status(500).json({ error: "No se pudo crear el escaneo" });
   }
 
   try {
@@ -82,7 +101,6 @@ app.post("/webhooks/gitlab", async (req, res) => {
   }
 
   const repoFullName = payload.project.path_with_namespace;
-
   const repoAndScan = await findRepoAndCreateScan("gitlab", repoFullName);
 
   if (!repoAndScan) {
